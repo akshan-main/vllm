@@ -68,17 +68,6 @@ impl StreamedResponseHandler {
     }
 }
 
-/// Trim leading/trailing ASCII whitespace from a byte slice.
-pub fn trim_bytes(bytes: &[u8]) -> &[u8] {
-    let start = bytes.iter().position(|b| !b.is_ascii_whitespace()).unwrap_or(bytes.len());
-    let end = bytes
-        .iter()
-        .rposition(|b| !b.is_ascii_whitespace())
-        .map(|p| p + 1)
-        .unwrap_or(start);
-    &bytes[start..end]
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -113,6 +102,22 @@ mod tests {
         }
 
         assert_eq!(messages, &[message.trim().to_string()]);
+    }
+
+    #[test]
+    fn test_all_two_chunk_splits_preserve_whitespace() {
+        // Whitespace at chunk edges is significant: the space in "data: " and
+        // spaces inside JSON strings must survive any packetization.
+        let stream = "data: {\"test\":\" leading 中 trailing \"}\n\ndata: [DONE]\n\n";
+        let bytes = stream.as_bytes();
+        let expected = StreamedResponseHandler::new().add_chunk(bytes).to_vec();
+
+        for split_at in 1..bytes.len() {
+            let mut handler = StreamedResponseHandler::new();
+            let mut messages = handler.add_chunk(&bytes[..split_at]).to_vec();
+            messages.extend_from_slice(handler.add_chunk(&bytes[split_at..]));
+            assert_eq!(messages, expected, "diverged at split {split_at}");
+        }
     }
 
     #[test]

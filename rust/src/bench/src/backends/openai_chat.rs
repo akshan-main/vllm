@@ -5,7 +5,7 @@ use std::time::Instant;
 
 use futures::StreamExt;
 
-use super::streaming::{StreamedResponseHandler, trim_bytes};
+use super::streaming::StreamedResponseHandler;
 use super::{ChatChunk, RequestFuncInput, RequestFuncOutput, build_headers};
 use crate::error::Result;
 
@@ -67,12 +67,11 @@ impl OpenAIChatBackend {
                             }
                         };
 
-                        let trimmed_bytes = trim_bytes(&chunk_bytes);
-                        if trimmed_bytes.is_empty() {
+                        if chunk_bytes.is_empty() {
                             continue;
                         }
 
-                        let messages = handler.add_chunk(trimmed_bytes);
+                        let messages = handler.add_chunk(&chunk_bytes);
                         for message in messages {
                             // Skip SSE comments
                             if message.starts_with(':') {
